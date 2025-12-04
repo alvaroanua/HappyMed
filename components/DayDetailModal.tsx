@@ -25,7 +25,7 @@ interface DayDetailModalProps {
   onClose: () => void
 }
 
-const WEBHOOK_URL = 'https://workflows.platform.happyrobot.ai/hooks/cbj6ozcqeqrz'
+const API_CALL_URL = '/api/call'
 
 export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModalProps) {
   const [medications, setMedications] = useState<Medication[]>([])
@@ -220,12 +220,12 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
         id: medication.id,
       }
 
-      console.log('=== WEBHOOK PAYLOAD ===')
-      console.log('URL:', WEBHOOK_URL)
+      console.log('=== API CALL PAYLOAD ===')
+      console.log('URL:', API_CALL_URL)
       console.log('Payload:', JSON.stringify(payload, null, 2))
 
-      console.log('Sending POST request...')
-      const response = await fetch(WEBHOOK_URL, {
+      console.log('Sending POST request to internal API...')
+      const response = await fetch(API_CALL_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -233,33 +233,25 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
         body: JSON.stringify(payload),
       })
 
-      console.log('=== RESPONSE RECEIVED ===')
+      console.log('=== API RESPONSE RECEIVED ===')
       console.log('Status:', response.status)
       console.log('Status Text:', response.statusText)
       console.log('Headers:', Object.fromEntries(response.headers.entries()))
 
-      const responseText = await response.text()
-      console.log('Response Body (raw):', responseText)
+      const responseData = await response.json()
+      console.log('Response Body:', JSON.stringify(responseData, null, 2))
 
       if (!response.ok) {
-        console.error('ERROR: HTTP error response')
+        console.error('ERROR: API returned error response')
         console.error('Status:', response.status)
-        console.error('Response:', responseText)
-        throw new Error(`HTTP error! status: ${response.status}, response: ${responseText}`)
+        console.error('Response:', responseData)
+        const errorMessage = responseData.error || `HTTP error! status: ${response.status}`
+        throw new Error(errorMessage)
       }
 
-      // Try to parse as JSON, but handle non-JSON responses
-      let result
-      try {
-        result = JSON.parse(responseText)
-        console.log('=== CALL TRIGGERED SUCCESSFULLY ===')
-        console.log('Response JSON:', JSON.stringify(result, null, 2))
-      } catch (parseError) {
-        console.log('Response is not JSON, treating as text')
-        result = responseText
-        console.log('Response text:', result)
-      }
-
+      console.log('=== CALL TRIGGERED SUCCESSFULLY ===')
+      console.log('Response data:', responseData)
+      
       alert('Call has been triggered successfully!')
     } catch (error: any) {
       console.error('=== ERROR TRIGGERING CALL ===')
