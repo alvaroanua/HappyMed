@@ -13,7 +13,10 @@ interface MedicationData {
 }
 
 interface DayStatus {
-  [date: string]: 'completed' | 'missed' | 'pending'
+  [date: string]: {
+    phoneAnswered: boolean | null
+    medicationTaken: boolean | null
+  }
 }
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -116,19 +119,11 @@ export default function PillBox() {
       if (callLogs) {
         callLogs.forEach((log) => {
           const dateKey = log.call_date
-          // Determine status based on answered and answer
-          if (!log.answered) {
-            // Not answered → missed
-            statusMap[dateKey] = 'missed'
-          } else if (log.answer === 'yes') {
-            // Answered and said yes → completed
-            statusMap[dateKey] = 'completed'
-          } else if (log.answer === 'no') {
-            // Answered but said no → missed
-            statusMap[dateKey] = 'missed'
-          } else {
-            // Answered but no answer recorded → pending
-            statusMap[dateKey] = 'pending'
+          statusMap[dateKey] = {
+            phoneAnswered: log.answered,
+            medicationTaken: log.answered && log.answer === 'yes' ? true :
+                            log.answered && log.answer === 'no' ? false :
+                            null,
           }
         })
       }
@@ -167,7 +162,7 @@ export default function PillBox() {
     return `${displayHour}:${minutes} ${ampm}`
   }
 
-  const getStatusForDate = (date: Date): 'completed' | 'missed' | 'pending' => {
+  const getStatusForDate = (date: Date) => {
     const dateKey = formatDate(date)
     
     // If status is set from call logs, return it
@@ -175,7 +170,23 @@ export default function PillBox() {
       return dayStatuses[dateKey]
     }
     
-    // No call log for this date → pending
+    // No call log for this date → both pending
+    return {
+      phoneAnswered: null,
+      medicationTaken: null,
+    }
+  }
+
+  const getStatusClass = (status: { phoneAnswered: boolean | null; medicationTaken: boolean | null }) => {
+    // If medication was taken → completed (green)
+    if (status.medicationTaken === true) {
+      return 'completed'
+    }
+    // If phone not answered or medication not taken → missed (red)
+    if (status.phoneAnswered === false || status.medicationTaken === false) {
+      return 'missed'
+    }
+    // Otherwise → pending (gray)
     return 'pending'
   }
 
@@ -219,12 +230,13 @@ export default function PillBox() {
         {weekDates.map((date, index) => {
           const dateKey = formatDate(date)
           const status = getStatusForDate(date)
+          const statusClass = getStatusClass(status)
           const isToday = dateKey === formatDate(new Date())
           
           return (
             <div
               key={dateKey}
-              className={`${styles.dayBox} ${styles[status]} ${isToday ? styles.today : ''} ${styles.clickable}`}
+              className={`${styles.dayBox} ${styles[statusClass]} ${isToday ? styles.today : ''} ${styles.clickable}`}
               onClick={() => handleDayClick(date)}
             >
               <div className={styles.dayHeader}>
@@ -237,9 +249,22 @@ export default function PillBox() {
                 </div>
               </div>
               <div className={styles.statusIndicator}>
-                {status === 'completed' && <span className={styles.statusText}>✓ Taken</span>}
-                {status === 'missed' && <span className={styles.statusText}>✗ Missed</span>}
-                {status === 'pending' && <span className={styles.statusText}>Pending</span>}
+                <div className={styles.statusRow}>
+                  <span className={styles.statusLabel}>Phone:</span>
+                  <span className={styles.statusValue}>
+                    {status.phoneAnswered === true ? '✓' :
+                     status.phoneAnswered === false ? '✗' :
+                     '—'}
+                  </span>
+                </div>
+                <div className={styles.statusRow}>
+                  <span className={styles.statusLabel}>Med:</span>
+                  <span className={styles.statusValue}>
+                    {status.medicationTaken === true ? '✓' :
+                     status.medicationTaken === false ? '✗' :
+                     '—'}
+                  </span>
+                </div>
               </div>
             </div>
           )

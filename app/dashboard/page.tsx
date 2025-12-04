@@ -63,6 +63,13 @@ export default function Dashboard() {
           
           const newRecord = payload.new as any
           
+          // Show popup immediately when webhook response is saved to database
+          setNotification({
+            message: `📞 Call response received and saved to database!`,
+            type: 'success',
+            visible: true,
+          })
+          
           // Check if this is for a grandparent belonging to this user
           const { data: grandparent } = await supabase
             .from('grandparents')
@@ -71,33 +78,38 @@ export default function Dashboard() {
             .single()
 
           if (grandparent && grandparent.user_id === userId) {
-            // Check if they answered and said yes
-            if (newRecord.answered && newRecord.answer === 'yes') {
-              setNotification({
-                message: `✅ Great news! ${grandparent.name} has taken their medication!`,
-                type: 'success',
-                visible: true,
-              })
-              
-              // Trigger a page refresh to update the pill box
-              window.dispatchEvent(new Event('callLogUpdated'))
-            } else if (newRecord.answered && newRecord.answer === 'no') {
-              setNotification({
-                message: `⚠️ ${grandparent.name} answered but did not take their medication.`,
-                type: 'warning',
-                visible: true,
-              })
-              
-              window.dispatchEvent(new Event('callLogUpdated'))
-            } else if (!newRecord.answered) {
-              setNotification({
-                message: `ℹ️ ${grandparent.name} did not answer the phone call.`,
-                type: 'info',
-                visible: true,
-              })
-              
-              window.dispatchEvent(new Event('callLogUpdated'))
-            }
+            // Show additional detailed notification based on response after a short delay
+            setTimeout(() => {
+              if (newRecord.answered && newRecord.answer === 'yes') {
+                setNotification({
+                  message: `✅ Great news! ${grandparent.name} has taken their medication!`,
+                  type: 'success',
+                  visible: true,
+                })
+              } else if (newRecord.answered && newRecord.answer === 'no') {
+                setNotification({
+                  message: `⚠️ ${grandparent.name} answered but did not take their medication.`,
+                  type: 'warning',
+                  visible: true,
+                })
+              } else if (!newRecord.answered) {
+                setNotification({
+                  message: `ℹ️ ${grandparent.name} did not answer the phone call.`,
+                  type: 'info',
+                  visible: true,
+                })
+              } else {
+                // Answered but no answer recorded (edge case)
+                setNotification({
+                  message: `ℹ️ Call response received for ${grandparent.name}. Status updated in database.`,
+                  type: 'info',
+                  visible: true,
+                })
+              }
+            }, 1500) // Show detailed notification after 1.5 seconds
+            
+            // Trigger a page refresh to update the pill box
+            window.dispatchEvent(new Event('callLogUpdated'))
           }
         }
       )

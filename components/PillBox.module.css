@@ -142,20 +142,39 @@
 .statusIndicator {
   margin-top: auto;
   padding-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
 }
 
-.statusText {
-  font-size: 0.75rem;
-  font-weight: 500;
+.statusRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.7rem;
+}
+
+.statusLabel {
   color: #64748b;
+  font-weight: 500;
 }
 
-.completed .statusText {
+.statusValue {
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.completed .statusValue {
   color: #10b981;
 }
 
-.missed .statusText {
+.missed .statusValue {
   color: #ef4444;
+}
+
+.pending .statusValue {
+  color: #64748b;
 }
 
 @media (max-width: 768px) {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getUserId } from '@/lib/session'
+import SimplePopup from './SimplePopup'
 import styles from './DayDetailModal.module.css'
 
 interface Medication {
@@ -12,7 +13,8 @@ interface Medication {
   time_to_call: string
   gender: string
   phone_number: string
-  status: 'completed' | 'missed' | 'pending'
+  phoneAnswered: boolean | null // null = pending, true = answered, false = not answered
+  medicationTaken: boolean | null // null = pending/not answered, true = yes, false = no
   callLog?: {
     answered: boolean
     answer: string | null
@@ -37,6 +39,15 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [callingMedicationId, setCallingMedicationId] = useState<string | null>(null)
+  const [popup, setPopup] = useState<{
+    message: string
+    type: 'success' | 'error' | 'info'
+    visible: boolean
+  }>({
+    message: '',
+    type: 'success',
+    visible: false,
+  })
 
   useEffect(() => {
     if (isOpen) {
@@ -142,19 +153,23 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
         // Map medications with call log status
         const meds: Medication[] = grandparents.map((gp) => {
           const callLog = callLogMap.get(gp.id)
-          let status: 'completed' | 'missed' | 'pending' = 'pending'
+          
+          // Determine phone answered status
+          let phoneAnswered: boolean | null = null
+          let medicationTaken: boolean | null = null
 
           if (callLog) {
-            if (!callLog.answered) {
-              // Not answered → missed
-              status = 'missed'
-            } else if (callLog.answer === 'yes') {
-              // Answered and said yes → completed
-              status = 'completed'
-            } else if (callLog.answer === 'no') {
-              // Answered but said no → missed
-              status = 'missed'
+            phoneAnswered = callLog.answered
+            if (callLog.answered) {
+              // If answered, check if they took medication
+              if (callLog.answer === 'yes') {
+                medicationTaken = true
+              } else if (callLog.answer === 'no') {
+                medicationTaken = false
+              }
+              // If answered but no answer recorded, medicationTaken stays null
             }
+            // If not answered, both stay null
           }
 
           const med = {
@@ -164,7 +179,8 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
             time_to_call: gp.time_to_call,
             gender: gp.gender,
             phone_number: gp.phone_number,
-            status,
+            phoneAnswered,
+            medicationTaken,
             callLog: callLog || undefined,
           }
           console.log('Mapped medication:', med)
@@ -218,34 +234,58 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
 
     if (!userInfo) {
       console.error('ERROR: User information not loaded')
-      alert('User information not loaded. Please try again.')
+      setPopup({
+        message: 'User information not loaded. Please try again.',
+        type: 'error',
+        visible: true,
+      })
       return
     }
 
     // Validate required fields
     if (!medication.name) {
       console.error('ERROR: Missing medication.name')
-      alert('Missing grandparent name')
+      setPopup({
+        message: 'Missing grandparent name',
+        type: 'error',
+        visible: true,
+      })
       return
     }
     if (!medication.medication) {
       console.error('ERROR: Missing medication.medication')
-      alert('Missing medication name')
+      setPopup({
+        message: 'Missing medication name',
+        type: 'error',
+        visible: true,
+      })
       return
     }
     if (!medication.phone_number) {
       console.error('ERROR: Missing medication.phone_number')
-      alert('Missing grandparent phone number')
+      setPopup({
+        message: 'Missing grandparent phone number',
+        type: 'error',
+        visible: true,
+      })
       return
     }
     if (!userInfo.name) {
       console.error('ERROR: Missing userInfo.name')
-      alert('Missing user name')
+      setPopup({
+        message: 'Missing user name',
+        type: 'error',
+        visible: true,
+      })
       return
     }
     if (!userInfo.phone_number) {
       console.error('ERROR: Missing userInfo.phone_number')
-      alert('Missing user phone number')
+      setPopup({
+        message: 'Missing user phone number',
+        type: 'error',
+        visible: true,
+      })
       return
     }
 
@@ -295,7 +335,11 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
       console.log('=== CALL TRIGGERED SUCCESSFULLY ===')
       console.log('Response data:', responseData)
       
-      alert('Call has been triggered successfully!')
+      setPopup({
+        message: 'Call has been triggered successfully!',
+        type: 'success',
+        visible: true,
+      })
     } catch (error: any) {
       console.error('=== ERROR TRIGGERING CALL ===')
       console.error('Error type:', error?.constructor?.name)
@@ -304,7 +348,11 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
       console.error('Full error object:', error)
       
       const errorMessage = error?.message || 'Unknown error occurred'
-      alert(`Failed to trigger call: ${errorMessage}`)
+      setPopup({
+        message: `Failed to trigger call: ${errorMessage}`,
+        type: 'error',
+        visible: true,
+      })
     } finally {
       console.log('=== CALL TRIGGER COMPLETED ===')
       setCallingMedicationId(null)
@@ -333,23 +381,10 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
               {medications.map((med) => (
                 <div
                   key={med.id}
-                  className={`${styles.medicationItem} ${styles[med.status]}`}
+                  className={styles.medicationItem}
                 >
                   <div className={styles.medicationHeader}>
                     <div className={styles.medicationName}>{med.medication}</div>
-                    <div className={styles.statusBadge}>
-                      {med.status === 'completed' && (
-                        <span className={styles.completedBadge}>✓ Taken</span>
-                      )}
-                      {med.status === 'missed' && med.callLog && (
-                        <span className={styles.missedBadge}>
-                          {med.callLog.answered ? '✗ Not Taken' : '✗ Not Answered'}
-                        </span>
-                      )}
-                      {med.status === 'pending' && (
-                        <span className={styles.pendingBadge}>Pending</span>
-                      )}
-                    </div>
                   </div>
                   <div className={styles.medicationDetails}>
                     <div className={styles.detailRow}>
@@ -359,6 +394,32 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
                     <div className={styles.detailRow}>
                       <span className={styles.label}>Time:</span>
                       <span className={styles.value}>{formatTime(med.time_to_call)}</span>
+                    </div>
+                  </div>
+                  <div className={styles.statusSection}>
+                    <div className={styles.statusRow}>
+                      <span className={styles.statusLabel}>Phone Answered:</span>
+                      <span className={`${styles.statusValue} ${
+                        med.phoneAnswered === true ? styles.statusYes :
+                        med.phoneAnswered === false ? styles.statusNo :
+                        styles.statusPending
+                      }`}>
+                        {med.phoneAnswered === true ? '✓ Yes' :
+                         med.phoneAnswered === false ? '✗ No' :
+                         'Pending'}
+                      </span>
+                    </div>
+                    <div className={styles.statusRow}>
+                      <span className={styles.statusLabel}>Medication Taken:</span>
+                      <span className={`${styles.statusValue} ${
+                        med.medicationTaken === true ? styles.statusYes :
+                        med.medicationTaken === false ? styles.statusNo :
+                        styles.statusPending
+                      }`}>
+                        {med.medicationTaken === true ? '✓ Yes' :
+                         med.medicationTaken === false ? '✗ No' :
+                         'Pending'}
+                      </span>
                     </div>
                   </div>
                   <button
@@ -374,6 +435,13 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
           )}
         </div>
       </div>
+
+      <SimplePopup
+        message={popup.message}
+        type={popup.type}
+        isVisible={popup.visible}
+        onClose={() => setPopup({ ...popup, visible: false })}
+      />
     </div>
   )
 }
