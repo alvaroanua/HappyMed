@@ -56,16 +56,17 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
       
       // Set up polling to check database every 30 seconds
       const intervalId = setInterval(() => {
-        console.log('Polling: Refreshing medication data...')
+        console.log('Polling: Refreshing medication data for date:', date)
         loadMedicationsForDay()
       }, 30000) // 30 seconds
       
       // Cleanup interval on unmount or when modal closes
       return () => {
+        console.log('Cleaning up polling interval')
         clearInterval(intervalId)
       }
     }
-  }, [isOpen, date])
+  }, [isOpen, date]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadUserInfo = async () => {
     console.log('=== LOADING USER INFO ===')

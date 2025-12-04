@@ -31,8 +31,6 @@ export default function PillBox() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isMedicationFormOpen, setIsMedicationFormOpen] = useState(false)
   const [isGrandparentFormOpen, setIsGrandparentFormOpen] = useState(false)
-  const [isMedicationFormOpen, setIsMedicationFormOpen] = useState(false)
-  const [isGrandparentFormOpen, setIsGrandparentFormOpen] = useState(false)
 
   useEffect(() => {
     loadGrandparentData()
