@@ -27,6 +27,7 @@ export default function PillBox() {
 
   useEffect(() => {
     loadGrandparentData()
+    loadCallLogs()
   }, [])
 
   const loadGrandparentData = async () => {
@@ -41,7 +42,7 @@ export default function PillBox() {
       // Load grandparent data from Supabase
       const { data, error } = await supabase
         .from('grandparents')
-        .select('name, medication, time_to_call')
+        .select('id, name, medication, time_to_call')
         .eq('user_id', userId)
         .limit(1)
         .single()
@@ -63,6 +64,67 @@ export default function PillBox() {
       console.error('Error loading medication data:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadCallLogs = async () => {
+    try {
+      const userId = getUserId()
+      if (!userId) return
+
+      // Get the week date range
+      const weekDates = getWeekDates()
+      const startDate = formatDate(weekDates[0])
+      const endDate = formatDate(weekDates[6])
+
+      // Load all grandparents for this user
+      const { data: grandparents, error: gpError } = await supabase
+        .from('grandparents')
+        .select('id')
+        .eq('user_id', userId)
+
+      if (gpError || !grandparents || grandparents.length === 0) return
+
+      const grandparentIds = grandparents.map((gp) => gp.id)
+
+      // Load call logs for this week
+      const { data: callLogs, error: logsError } = await supabase
+        .from('call_logs')
+        .select('grandparent_id, call_date, answered, answer')
+        .in('grandparent_id', grandparentIds)
+        .gte('call_date', startDate)
+        .lte('call_date', endDate)
+
+      if (logsError) {
+        console.error('Error loading call logs:', logsError)
+        return
+      }
+
+      // Process call logs into status map
+      const statusMap: DayStatus = {}
+      if (callLogs) {
+        callLogs.forEach((log) => {
+          const dateKey = log.call_date
+          // Determine status based on answered and answer
+          if (!log.answered) {
+            // Not answered → missed
+            statusMap[dateKey] = 'missed'
+          } else if (log.answer === 'yes') {
+            // Answered and said yes → completed
+            statusMap[dateKey] = 'completed'
+          } else if (log.answer === 'no') {
+            // Answered but said no → missed
+            statusMap[dateKey] = 'missed'
+          } else {
+            // Answered but no answer recorded → pending
+            statusMap[dateKey] = 'pending'
+          }
+        })
+      }
+
+      setDayStatuses(statusMap)
+    } catch (error) {
+      console.error('Error loading call logs:', error)
     }
   }
 
@@ -96,20 +158,13 @@ export default function PillBox() {
 
   const getStatusForDate = (date: Date): 'completed' | 'missed' | 'pending' => {
     const dateKey = formatDate(date)
-    const today = new Date()
-    const todayKey = formatDate(today)
     
-    // If status is already set, return it
+    // If status is set from call logs, return it
     if (dayStatuses[dateKey]) {
       return dayStatuses[dateKey]
     }
     
-    // For past dates, default to pending (will be marked via API later)
-    if (dateKey < todayKey) {
-      return 'pending'
-    }
-    
-    // For today and future dates, default to pending
+    // No call log for this date → pending
     return 'pending'
   }
 

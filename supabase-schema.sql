@@ -29,10 +29,12 @@ CREATE INDEX IF NOT EXISTS idx_grandparents_user_id ON grandparents(user_id);
 CREATE TABLE IF NOT EXISTS call_logs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   grandparent_id UUID NOT NULL REFERENCES grandparents(id) ON DELETE CASCADE,
-  answered BOOLEAN NOT NULL,
-  answer TEXT, -- 'yes', 'no', or NULL if not answered
+  answered BOOLEAN NOT NULL, -- true if they answered the phone, false if not
+  answer TEXT, -- 'yes' if they took medication, 'no' if they didn't, NULL if not answered
+  call_date DATE NOT NULL, -- Date of the call (for tracking daily status)
   called_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  UNIQUE(grandparent_id, call_date) -- One call log per grandparent per day
 );
 
 -- Create index on grandparent_id for faster queries
@@ -40,6 +42,9 @@ CREATE INDEX IF NOT EXISTS idx_call_logs_grandparent_id ON call_logs(grandparent
 
 -- Create index on called_at for date-based queries
 CREATE INDEX IF NOT EXISTS idx_call_logs_called_at ON call_logs(called_at);
+
+-- Create index on call_date for date-based queries
+CREATE INDEX IF NOT EXISTS idx_call_logs_call_date ON call_logs(call_date);
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;

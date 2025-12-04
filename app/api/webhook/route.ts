@@ -59,16 +59,23 @@ export async function POST(request: NextRequest) {
     // Option 2: Create a call_logs table (better for history)
     // Let's use a call_logs table for better tracking
 
+    // Get the call date (today's date in YYYY-MM-DD format)
+    const callDate = new Date().toISOString().split('T')[0]
+
     const { data: logEntry, error: logError } = await supabase
       .from('call_logs')
-      .insert([
+      .upsert(
         {
           grandparent_id: grandparent_id,
+          call_date: callDate,
           answered: answered,
           answer: answer || null,
           called_at: new Date().toISOString(),
         },
-      ])
+        {
+          onConflict: 'grandparent_id,call_date',
+        }
+      )
       .select()
       .single()
 

@@ -13,6 +13,10 @@ interface Medication {
   gender: string
   phone_number: string
   status: 'completed' | 'missed' | 'pending'
+  callLog?: {
+    answered: boolean
+    answer: string | null
+  }
 }
 
 interface UserInfo {
@@ -114,8 +118,45 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
 
       console.log('Grandparents data received:', grandparents)
       if (grandparents) {
-        // For now, all medications show as pending (will be updated via API later)
+        const grandparentIds = grandparents.map((gp) => gp.id)
+        const dateKey = formatDate(date)
+
+        // Load call logs for this date
+        const { data: callLogs, error: logsError } = await supabase
+          .from('call_logs')
+          .select('grandparent_id, answered, answer')
+          .in('grandparent_id', grandparentIds)
+          .eq('call_date', dateKey)
+
+        // Create a map of grandparent_id to call log
+        const callLogMap = new Map()
+        if (callLogs) {
+          callLogs.forEach((log) => {
+            callLogMap.set(log.grandparent_id, {
+              answered: log.answered,
+              answer: log.answer,
+            })
+          })
+        }
+
+        // Map medications with call log status
         const meds: Medication[] = grandparents.map((gp) => {
+          const callLog = callLogMap.get(gp.id)
+          let status: 'completed' | 'missed' | 'pending' = 'pending'
+
+          if (callLog) {
+            if (!callLog.answered) {
+              // Not answered → missed
+              status = 'missed'
+            } else if (callLog.answer === 'yes') {
+              // Answered and said yes → completed
+              status = 'completed'
+            } else if (callLog.answer === 'no') {
+              // Answered but said no → missed
+              status = 'missed'
+            }
+          }
+
           const med = {
             id: gp.id,
             name: gp.name,
@@ -123,7 +164,8 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
             time_to_call: gp.time_to_call,
             gender: gp.gender,
             phone_number: gp.phone_number,
-            status: 'pending' as const,
+            status,
+            callLog: callLog || undefined,
           }
           console.log('Mapped medication:', med)
           return med
@@ -297,10 +339,12 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
                     <div className={styles.medicationName}>{med.medication}</div>
                     <div className={styles.statusBadge}>
                       {med.status === 'completed' && (
-                        <span className={styles.completedBadge}>✓ Completed</span>
+                        <span className={styles.completedBadge}>✓ Taken</span>
                       )}
-                      {med.status === 'missed' && (
-                        <span className={styles.missedBadge}>✗ Missed</span>
+                      {med.status === 'missed' && med.callLog && (
+                        <span className={styles.missedBadge}>
+                          {med.callLog.answered ? '✗ Not Taken' : '✗ Not Answered'}
+                        </span>
                       )}
                       {med.status === 'pending' && (
                         <span className={styles.pendingBadge}>Pending</span>
