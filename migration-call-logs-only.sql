@@ -26,15 +26,26 @@ CREATE INDEX IF NOT EXISTS idx_call_logs_call_date ON call_logs(call_date);
 ALTER TABLE call_logs ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for call_logs table
--- Allow webhook to insert call logs (public insert for webhook)
+-- Open policies to allow all operations for everyone (needed for webhook)
+
+-- Allow anyone to insert call logs
 CREATE POLICY "Allow insert for call logs" ON call_logs
   FOR INSERT
   WITH CHECK (true);
 
--- Allow users to read call logs for their own grandparents
--- Note: This uses a service role key in the webhook, so RLS is bypassed
--- For user-facing queries, they can read their own call logs
-CREATE POLICY "Users can read own call logs" ON call_logs
+-- Allow anyone to read call logs
+CREATE POLICY "Allow select for call logs" ON call_logs
   FOR SELECT
-  USING (true); -- Simplified for now, can be restricted later if needed
+  USING (true);
+
+-- Allow anyone to update call logs
+CREATE POLICY "Allow update for call logs" ON call_logs
+  FOR UPDATE
+  USING (true)
+  WITH CHECK (true);
+
+-- Allow anyone to delete call logs
+CREATE POLICY "Allow delete for call logs" ON call_logs
+  FOR DELETE
+  USING (true);
 

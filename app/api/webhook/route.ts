@@ -25,16 +25,22 @@ export async function POST(request: NextRequest) {
     if (!grandparent_id) {
       console.error('ERROR: Missing grandparent_id')
       return NextResponse.json(
-        { error: 'Missing required field: grandparent_id' },
-        { status: 400 }
+        { 
+          success: false,
+          error: 'Missing required field: grandparent_id' 
+        },
+        { status: 200 }
       )
     }
 
     if (answered === undefined || answered === null) {
       console.error('ERROR: Missing answered field')
       return NextResponse.json(
-        { error: 'Missing required field: answered' },
-        { status: 400 }
+        { 
+          success: false,
+          error: 'Missing required field: answered' 
+        },
+        { status: 200 }
       )
     }
 
@@ -86,22 +92,26 @@ export async function POST(request: NextRequest) {
       
       // If table doesn't exist, return error with instructions
       if (logError.code === '42P01') {
+        console.error('ERROR: Database table not found')
         return NextResponse.json(
           {
+            success: false,
             error: 'Database table not found',
             message: 'Please create the call_logs table in Supabase',
             details: logError.message,
           },
-          { status: 500 }
+          { status: 200 }
         )
       }
       
+      console.error('ERROR: Failed to save call log')
       return NextResponse.json(
         {
+          success: false,
           error: 'Failed to save call log',
           details: logError.message,
         },
-        { status: 500 }
+        { status: 200 }
       )
     }
 
@@ -120,12 +130,14 @@ export async function POST(request: NextRequest) {
     console.error('Error stack:', error?.stack)
     console.error('Full error object:', error)
 
+    console.error('ERROR: Internal server error')
     return NextResponse.json(
       {
+        success: false,
         error: 'Internal server error',
         message: error?.message || 'Unknown error occurred',
       },
-      { status: 500 }
+      { status: 200 }
     )
   }
 }

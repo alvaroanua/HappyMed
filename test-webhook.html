@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Webhook Tester</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      padding: 2rem;
+      background: #f5f5f5;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      margin-bottom: 1rem;
+      color: #1e293b;
+    }
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+      color: #374151;
+    }
+    input, select {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 1rem;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      margin-top: 1rem;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+    button:disabled {
+      background: #93c5fd;
+      cursor: not-allowed;
+    }
+    .result {
+      margin-top: 2rem;
+      padding: 1rem;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 0.875rem;
+      white-space: pre-wrap;
+    }
+    .success {
+      background: #f0fdf4;
+      border: 1px solid #10b981;
+      color: #065f46;
+    }
+    .error {
+      background: #fef2f2;
+      border: 1px solid #ef4444;
+      color: #991b1b;
+    }
+    .info {
+      background: #eff6ff;
+      border: 1px solid #3b82f6;
+      color: #1e40af;
+    }
+    .preset-buttons {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+    .preset-btn {
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Webhook Tester</h1>
+    <p style="color: #64748b; margin-bottom: 1.5rem;">
+      Test the webhook endpoint at <code>http://localhost:3000/api/webhook</code>
+    </p>
+
+    <div class="preset-buttons">
+      <button class="preset-btn" onclick="loadPreset('answered-yes')">✅ Answered + Yes</button>
+      <button class="preset-btn" onclick="loadPreset('answered-no')">❌ Answered + No</button>
+      <button class="preset-btn" onclick="loadPreset('not-answered')">📞 Not Answered</button>
+    </div>
+
+    <form id="webhookForm">
+      <div class="form-group">
+        <label for="grandparent_id">Grandparent ID *</label>
+        <input 
+          type="text" 
+          id="grandparent_id" 
+          required
+          placeholder="Enter a grandparent UUID from your database"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="answered">Answered Phone? *</label>
+        <select id="answered" required>
+          <option value="true">Yes</option>
+          <option value="false">No</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="answer">Answer (if answered)</label>
+        <select id="answer">
+          <option value="">Select...</option>
+          <option value="yes">Yes (took medication)</option>
+          <option value="no">No (didn't take medication)</option>
+        </select>
+        <small style="color: #64748b; display: block; margin-top: 0.25rem;">
+          Leave empty if not answered
+        </small>
+      </div>
+
+      <button type="submit" id="submitBtn">Send Webhook</button>
+    </form>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const WEBHOOK_URL = 'http://localhost:3000/api/webhook'
+
+    function loadPreset(type) {
+      const grandparentId = document.getElementById('grandparent_id').value || 'test-id'
+      
+      switch(type) {
+        case 'answered-yes':
+          document.getElementById('grandparent_id').value = grandparentId
+          document.getElementById('answered').value = 'true'
+          document.getElementById('answer').value = 'yes'
+          break
+        case 'answered-no':
+          document.getElementById('grandparent_id').value = grandparentId
+          document.getElementById('answered').value = 'true'
+          document.getElementById('answer').value = 'no'
+          break
+        case 'not-answered':
+          document.getElementById('grandparent_id').value = grandparentId
+          document.getElementById('answered').value = 'false'
+          document.getElementById('answer').value = ''
+          break
+      }
+    }
+
+    document.getElementById('webhookForm').addEventListener('submit', async (e) => {
+      e.preventDefault()
+      
+      const submitBtn = document.getElementById('submitBtn')
+      const resultDiv = document.getElementById('result')
+      
+      submitBtn.disabled = true
+      submitBtn.textContent = 'Sending...'
+      resultDiv.innerHTML = ''
+
+      const payload = {
+        grandparent_id: document.getElementById('grandparent_id').value,
+        answered: document.getElementById('answered').value === 'true',
+        answer: document.getElementById('answer').value || null,
+      }
+
+      try {
+        const response = await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        })
+
+        const data = await response.json()
+
+        let resultHTML = `<strong>Status:</strong> ${response.status} ${response.statusText}\n\n`
+        resultHTML += `<strong>Response:</strong>\n${JSON.stringify(data, null, 2)}`
+
+        if (response.ok) {
+          resultDiv.className = 'result success'
+          resultDiv.textContent = '✅ SUCCESS\n\n' + resultHTML
+        } else {
+          resultDiv.className = 'result error'
+          resultDiv.textContent = '❌ ERROR\n\n' + resultHTML
+        }
+      } catch (error) {
+        resultDiv.className = 'result error'
+        resultDiv.textContent = `❌ NETWORK ERROR\n\n${error.message}\n\nMake sure your Next.js dev server is running on localhost:3000`
+      } finally {
+        submitBtn.disabled = false
+        submitBtn.textContent = 'Send Webhook'
+      }
+    })
+
+    // Update answer field based on answered selection
+    document.getElementById('answered').addEventListener('change', (e) => {
+      if (e.target.value === 'false') {
+        document.getElementById('answer').value = ''
+      }
+    })
+  </script>
+</body>
+</html>
+
