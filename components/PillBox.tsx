@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getUserId } from '@/lib/session'
 import DayDetailModal from './DayDetailModal'
+import AddMedicationForm from './AddMedicationForm'
+import AddGrandparentForm from './AddGrandparentForm'
 import styles from './PillBox.module.css'
 
 interface MedicationData {
@@ -27,6 +29,10 @@ export default function PillBox() {
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isMedicationFormOpen, setIsMedicationFormOpen] = useState(false)
+  const [isGrandparentFormOpen, setIsGrandparentFormOpen] = useState(false)
+  const [isMedicationFormOpen, setIsMedicationFormOpen] = useState(false)
+  const [isGrandparentFormOpen, setIsGrandparentFormOpen] = useState(false)
 
   useEffect(() => {
     loadGrandparentData()
@@ -221,9 +227,27 @@ export default function PillBox() {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h2 className={styles.title}>{medicationData.grandparentName}'s Medication Tracker</h2>
-        <p className={styles.medicationName}>{medicationData.medication}</p>
-        <p className={styles.timeInfo}>Time: {formatTime(medicationData.timeToCall)}</p>
+        <div className={styles.headerContent}>
+          <div>
+            <h2 className={styles.title}>{medicationData.grandparentName}'s Medication Tracker</h2>
+            <p className={styles.medicationName}>{medicationData.medication}</p>
+            <p className={styles.timeInfo}>Time: {formatTime(medicationData.timeToCall)}</p>
+          </div>
+          <div className={styles.actionButtons}>
+            <button
+              className={styles.addButton}
+              onClick={() => setIsMedicationFormOpen(true)}
+            >
+              + Add Medication
+            </button>
+            <button
+              className={styles.addButton}
+              onClick={() => setIsGrandparentFormOpen(true)}
+            >
+              + Add Grandparent
+            </button>
+          </div>
+        </div>
       </div>
       
       <div className={styles.pillBox}>
@@ -278,6 +302,16 @@ export default function PillBox() {
           onClose={handleCloseModal}
         />
       )}
+
+      <AddMedicationForm
+        isOpen={isMedicationFormOpen}
+        onClose={() => setIsMedicationFormOpen(false)}
+      />
+
+      <AddGrandparentForm
+        isOpen={isGrandparentFormOpen}
+        onClose={() => setIsGrandparentFormOpen(false)}
+      />
     </div>
   )
 }

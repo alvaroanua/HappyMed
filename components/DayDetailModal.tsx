@@ -53,6 +53,17 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
     if (isOpen) {
       loadMedicationsForDay()
       loadUserInfo()
+      
+      // Set up polling to check database every 30 seconds
+      const intervalId = setInterval(() => {
+        console.log('Polling: Refreshing medication data...')
+        loadMedicationsForDay()
+      }, 30000) // 30 seconds
+      
+      // Cleanup interval on unmount or when modal closes
+      return () => {
+        clearInterval(intervalId)
+      }
     }
   }, [isOpen, date])
 
