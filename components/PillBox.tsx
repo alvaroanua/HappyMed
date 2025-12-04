@@ -28,6 +28,17 @@ export default function PillBox() {
   useEffect(() => {
     loadGrandparentData()
     loadCallLogs()
+    
+    // Listen for call log updates from realtime
+    const handleCallLogUpdate = () => {
+      loadCallLogs()
+    }
+    
+    window.addEventListener('callLogUpdated', handleCallLogUpdate)
+    
+    return () => {
+      window.removeEventListener('callLogUpdated', handleCallLogUpdate)
+    }
   }, [])
 
   const loadGrandparentData = async () => {
