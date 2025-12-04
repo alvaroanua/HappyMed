@@ -9,7 +9,14 @@ interface Medication {
   name: string
   medication: string
   time_to_call: string
+  gender: string
+  phone_number: string
   status: 'completed' | 'missed' | 'pending'
+}
+
+interface UserInfo {
+  name: string
+  phone_number: string
 }
 
 interface DayDetailModalProps {
@@ -18,46 +25,108 @@ interface DayDetailModalProps {
   onClose: () => void
 }
 
+const WEBHOOK_URL = 'https://workflows.platform.happyrobot.ai/hooks/cbj6ozcqeqrz'
+
 export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModalProps) {
   const [medications, setMedications] = useState<Medication[]>([])
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
   const [loading, setLoading] = useState(true)
+  const [callingMedicationId, setCallingMedicationId] = useState<string | null>(null)
 
   useEffect(() => {
     if (isOpen) {
       loadMedicationsForDay()
+      loadUserInfo()
     }
   }, [isOpen, date])
 
+  const loadUserInfo = async () => {
+    console.log('=== LOADING USER INFO ===')
+    try {
+      const userId = localStorage.getItem('medtracker_user_id')
+      console.log('User ID from localStorage:', userId)
+      
+      if (!userId) {
+        console.warn('WARNING: No user ID found in localStorage')
+        return
+      }
+
+      console.log('Fetching user data from Supabase...')
+      const { data, error } = await supabase
+        .from('users')
+        .select('name, phone_number')
+        .eq('id', userId)
+        .single()
+
+      if (error) {
+        console.error('ERROR loading user info:', error)
+        console.error('Error code:', error.code)
+        console.error('Error message:', error.message)
+        return
+      }
+
+      console.log('User data received:', data)
+      if (data) {
+        const userInfoData = {
+          name: data.name,
+          phone_number: data.phone_number,
+        }
+        console.log('Setting user info:', userInfoData)
+        setUserInfo(userInfoData)
+      } else {
+        console.warn('WARNING: No user data returned')
+      }
+    } catch (error) {
+      console.error('EXCEPTION loading user info:', error)
+      console.error('Error details:', error)
+    }
+  }
+
   const loadMedicationsForDay = async () => {
+    console.log('=== LOADING MEDICATIONS FOR DAY ===')
+    console.log('Date:', date)
     try {
       setLoading(true)
       const userId = localStorage.getItem('medtracker_user_id')
+      console.log('User ID:', userId)
+      
       if (!userId) {
+        console.warn('WARNING: No user ID found')
         setLoading(false)
         return
       }
 
-      // Load all grandparents for this user
+      console.log('Fetching grandparents from Supabase...')
+      // Load all grandparents for this user with gender and phone
       const { data: grandparents, error } = await supabase
         .from('grandparents')
-        .select('id, name, medication, time_to_call')
+        .select('id, name, medication, time_to_call, gender, phone_number')
         .eq('user_id', userId)
 
       if (error) {
-        console.error('Error loading medications:', error)
+        console.error('ERROR loading medications:', error)
+        console.error('Error code:', error.code)
+        console.error('Error message:', error.message)
         setLoading(false)
         return
       }
 
+      console.log('Grandparents data received:', grandparents)
       if (grandparents) {
         // For now, all medications show as pending (will be updated via API later)
-        const meds: Medication[] = grandparents.map((gp) => ({
-          id: gp.id,
-          name: gp.name,
-          medication: gp.medication,
-          time_to_call: gp.time_to_call,
-          status: 'pending' as const,
-        }))
+        const meds: Medication[] = grandparents.map((gp) => {
+          const med = {
+            id: gp.id,
+            name: gp.name,
+            medication: gp.medication,
+            time_to_call: gp.time_to_call,
+            gender: gp.gender,
+            phone_number: gp.phone_number,
+            status: 'pending' as const,
+          }
+          console.log('Mapped medication:', med)
+          return med
+        })
 
         // Sort by time
         meds.sort((a, b) => {
@@ -66,12 +135,17 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
           return timeA.localeCompare(timeB)
         })
 
+        console.log('Final medications array:', meds)
         setMedications(meds)
+      } else {
+        console.warn('WARNING: No grandparents data returned')
       }
     } catch (error) {
-      console.error('Error loading medications:', error)
+      console.error('EXCEPTION loading medications:', error)
+      console.error('Error details:', error)
     } finally {
       setLoading(false)
+      console.log('=== MEDICATIONS LOADING COMPLETED ===')
     }
   }
 
@@ -92,6 +166,114 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
     const ampm = hour >= 12 ? 'PM' : 'AM'
     const displayHour = hour % 12 || 12
     return `${displayHour}:${minutes} ${ampm}`
+  }
+
+  const triggerCall = async (medication: Medication) => {
+    console.log('=== CALL TRIGGER STARTED ===')
+    console.log('Medication data:', medication)
+    console.log('User info:', userInfo)
+
+    if (!userInfo) {
+      console.error('ERROR: User information not loaded')
+      alert('User information not loaded. Please try again.')
+      return
+    }
+
+    // Validate required fields
+    if (!medication.name) {
+      console.error('ERROR: Missing medication.name')
+      alert('Missing grandparent name')
+      return
+    }
+    if (!medication.medication) {
+      console.error('ERROR: Missing medication.medication')
+      alert('Missing medication name')
+      return
+    }
+    if (!medication.phone_number) {
+      console.error('ERROR: Missing medication.phone_number')
+      alert('Missing grandparent phone number')
+      return
+    }
+    if (!userInfo.name) {
+      console.error('ERROR: Missing userInfo.name')
+      alert('Missing user name')
+      return
+    }
+    if (!userInfo.phone_number) {
+      console.error('ERROR: Missing userInfo.phone_number')
+      alert('Missing user phone number')
+      return
+    }
+
+    setCallingMedicationId(medication.id)
+
+    try {
+      const payload = {
+        name_yaya: medication.name,
+        pill: medication.medication,
+        time: medication.time_to_call,
+        gender: medication.gender,
+        phone_yaya: medication.phone_number,
+        name_son: userInfo.name,
+        phone_son: userInfo.phone_number,
+        id: medication.id,
+      }
+
+      console.log('=== WEBHOOK PAYLOAD ===')
+      console.log('URL:', WEBHOOK_URL)
+      console.log('Payload:', JSON.stringify(payload, null, 2))
+
+      console.log('Sending POST request...')
+      const response = await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      console.log('=== RESPONSE RECEIVED ===')
+      console.log('Status:', response.status)
+      console.log('Status Text:', response.statusText)
+      console.log('Headers:', Object.fromEntries(response.headers.entries()))
+
+      const responseText = await response.text()
+      console.log('Response Body (raw):', responseText)
+
+      if (!response.ok) {
+        console.error('ERROR: HTTP error response')
+        console.error('Status:', response.status)
+        console.error('Response:', responseText)
+        throw new Error(`HTTP error! status: ${response.status}, response: ${responseText}`)
+      }
+
+      // Try to parse as JSON, but handle non-JSON responses
+      let result
+      try {
+        result = JSON.parse(responseText)
+        console.log('=== CALL TRIGGERED SUCCESSFULLY ===')
+        console.log('Response JSON:', JSON.stringify(result, null, 2))
+      } catch (parseError) {
+        console.log('Response is not JSON, treating as text')
+        result = responseText
+        console.log('Response text:', result)
+      }
+
+      alert('Call has been triggered successfully!')
+    } catch (error: any) {
+      console.error('=== ERROR TRIGGERING CALL ===')
+      console.error('Error type:', error?.constructor?.name)
+      console.error('Error message:', error?.message)
+      console.error('Error stack:', error?.stack)
+      console.error('Full error object:', error)
+      
+      const errorMessage = error?.message || 'Unknown error occurred'
+      alert(`Failed to trigger call: ${errorMessage}`)
+    } finally {
+      console.log('=== CALL TRIGGER COMPLETED ===')
+      setCallingMedicationId(null)
+    }
   }
 
   if (!isOpen) return null
@@ -142,6 +324,13 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
                       <span className={styles.value}>{formatTime(med.time_to_call)}</span>
                     </div>
                   </div>
+                  <button
+                    className={styles.callButton}
+                    onClick={() => triggerCall(med)}
+                    disabled={callingMedicationId === med.id || !userInfo}
+                  >
+                    {callingMedicationId === med.id ? 'Calling...' : '📞 Call Now'}
+                  </button>
                 </div>
               ))}
             </div>
