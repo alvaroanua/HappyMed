@@ -45,6 +45,15 @@
   transition: all 0.2s;
 }
 
+.dayBox.clickable {
+  cursor: pointer;
+}
+
+.dayBox.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
 .dayBox.today {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);

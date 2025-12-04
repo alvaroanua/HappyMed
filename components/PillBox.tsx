@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import DayDetailModal from './DayDetailModal'
 import styles from './PillBox.module.css'
 
 interface MedicationData {
@@ -20,6 +21,8 @@ export default function PillBox() {
   const [medicationData, setMedicationData] = useState<MedicationData | null>(null)
   const [dayStatuses, setDayStatuses] = useState<DayStatus>({})
   const [loading, setLoading] = useState(true)
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   useEffect(() => {
     loadGrandparentData()
@@ -109,6 +112,16 @@ export default function PillBox() {
     return 'pending'
   }
 
+  const handleDayClick = (date: Date) => {
+    setSelectedDate(date)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setSelectedDate(null)
+  }
+
   const weekDates = getWeekDates()
 
   if (loading) {
@@ -144,7 +157,8 @@ export default function PillBox() {
           return (
             <div
               key={dateKey}
-              className={`${styles.dayBox} ${styles[status]} ${isToday ? styles.today : ''}`}
+              className={`${styles.dayBox} ${styles[status]} ${isToday ? styles.today : ''} ${styles.clickable}`}
+              onClick={() => handleDayClick(date)}
             >
               <div className={styles.dayHeader}>
                 <div className={styles.dayName}>{DAYS_OF_WEEK[index]}</div>
@@ -164,6 +178,14 @@ export default function PillBox() {
           )
         })}
       </div>
+
+      {selectedDate && (
+        <DayDetailModal
+          date={selectedDate}
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+        />
+      )}
     </div>
   )
 }
