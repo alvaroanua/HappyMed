@@ -48,25 +48,47 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
     type: 'success',
     visible: false,
   })
+  const [recentCallTriggered, setRecentCallTriggered] = useState(false)
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null)
 
+  // Set up polling with dynamic interval based on recent call
   useEffect(() => {
-    if (isOpen) {
-      loadMedicationsForDay()
-      loadUserInfo()
-      
-      // Set up polling to check database every 30 seconds
-      const intervalId = setInterval(() => {
-        console.log('Polling: Refreshing medication data for date:', date)
-        loadMedicationsForDay()
-      }, 30000) // 30 seconds
-      
-      // Cleanup interval on unmount or when modal closes
-      return () => {
-        console.log('Cleaning up polling interval')
-        clearInterval(intervalId)
+    if (!isOpen) {
+      // Reset when modal closes
+      setRecentCallTriggered(false)
+      if (pollingInterval) {
+        clearInterval(pollingInterval)
+        setPollingInterval(null)
       }
+      return
     }
-  }, [isOpen, date]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    loadMedicationsForDay()
+    loadUserInfo()
+    
+    // Clear any existing interval first
+    if (pollingInterval) {
+      clearInterval(pollingInterval)
+    }
+    
+    // Use shorter interval (5 seconds) if call was recently triggered, otherwise 30 seconds
+    const interval = recentCallTriggered ? 5000 : 30000
+    
+    console.log(`Starting polling with ${interval / 1000} second interval (recentCallTriggered: ${recentCallTriggered})`)
+    
+    const intervalId = setInterval(() => {
+      console.log('Polling: Refreshing medication data for date:', date)
+      loadMedicationsForDay()
+    }, interval)
+    
+    setPollingInterval(intervalId)
+    
+    // Cleanup interval on unmount or when modal closes
+    return () => {
+      console.log('Cleaning up polling interval')
+      clearInterval(intervalId)
+    }
+  }, [isOpen, date, recentCallTriggered]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadUserInfo = async () => {
     console.log('=== LOADING USER INFO ===')
@@ -348,10 +370,22 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
       console.log('Response data:', responseData)
       
       setPopup({
-        message: 'Call has been triggered successfully!',
+        message: 'Call has been triggered successfully! Waiting for response...',
         type: 'success',
         visible: true,
       })
+      
+      // Start aggressive polling to check for call response
+      setRecentCallTriggered(true)
+      
+      // Check immediately, then every 5 seconds for the next 2 minutes
+      loadMedicationsForDay()
+      
+      // After 2 minutes, go back to normal polling
+      setTimeout(() => {
+        console.log('Returning to normal polling interval')
+        setRecentCallTriggered(false)
+      }, 120000) // 2 minutes
     } catch (error: any) {
       console.error('=== ERROR TRIGGERING CALL ===')
       console.error('Error type:', error?.constructor?.name)
