@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getUserId } from '@/lib/session'
 import styles from './DayDetailModal.module.css'
 
 interface Medication {
@@ -43,11 +44,11 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
   const loadUserInfo = async () => {
     console.log('=== LOADING USER INFO ===')
     try {
-      const userId = localStorage.getItem('medtracker_user_id')
-      console.log('User ID from localStorage:', userId)
+      const userId = getUserId()
+      console.log('User ID from session:', userId)
       
       if (!userId) {
-        console.warn('WARNING: No user ID found in localStorage')
+        console.warn('WARNING: No user ID found in session')
         return
       }
 
@@ -87,7 +88,7 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
     console.log('Date:', date)
     try {
       setLoading(true)
-      const userId = localStorage.getItem('medtracker_user_id')
+      const userId = getUserId()
       console.log('User ID:', userId)
       
       if (!userId) {

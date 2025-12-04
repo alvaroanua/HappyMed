@@ -90,3 +90,35 @@
   cursor: not-allowed;
 }
 
+.switchContainer {
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.switchText {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.switchButton {
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  font-size: 0.875rem;
+  transition: color 0.2s;
+}
+
+.switchButton:hover:not(:disabled) {
+  color: #1d4ed8;
+}
+
+.switchButton:disabled {
+  color: #93c5fd;
+  cursor: not-allowed;
+}
+

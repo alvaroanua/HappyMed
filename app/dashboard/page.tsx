@@ -5,6 +5,7 @@ import LoginForm from '@/components/LoginForm'
 import OnboardingForm from '@/components/OnboardingForm'
 import PillBox from '@/components/PillBox'
 import { supabase } from '@/lib/supabase'
+import { getUserId } from '@/lib/session'
 import styles from './page.module.css'
 
 type ViewState = 'login' | 'onboarding' | 'dashboard'
@@ -19,9 +20,23 @@ export default function Dashboard() {
 
   const checkAuthStatus = async () => {
     try {
-      const userId = localStorage.getItem('medtracker_user_id')
+      const userId = getUserId()
       
       if (!userId) {
+        setViewState('login')
+        setLoading(false)
+        return
+      }
+
+      // Verify user exists in database
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', userId)
+        .single()
+
+      if (userError || !user) {
+        console.error('User not found in database:', userError)
         setViewState('login')
         setLoading(false)
         return

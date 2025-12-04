@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getUserId } from '@/lib/session'
 import DayDetailModal from './DayDetailModal'
 import styles from './PillBox.module.css'
 
@@ -30,7 +31,7 @@ export default function PillBox() {
 
   const loadGrandparentData = async () => {
     try {
-      const userId = localStorage.getItem('medtracker_user_id')
+      const userId = getUserId()
       if (!userId) {
         console.error('User not logged in')
         setLoading(false)

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getUserId } from '@/lib/session'
 import styles from './OnboardingForm.module.css'
 
 interface GrandparentInfo {
@@ -37,27 +38,7 @@ export default function OnboardingForm({ onComplete }: OnboardingFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    // Load any saved grandparent data from localStorage (for draft)
-    const savedData = localStorage.getItem('medtracker_grandparent_draft')
-    if (savedData) {
-      try {
-        const parsed = JSON.parse(savedData)
-        setGrandparentInfo(parsed)
-        if (parsed.medication && !TYPICAL_MEDICATIONS.includes(parsed.medication)) {
-          setShowCustomMedication(true)
-          setCustomMedication(parsed.medication)
-        }
-      } catch (error) {
-        console.error('Error loading draft data:', error)
-      }
-    }
-  }, [])
-
-  // Save draft to localStorage as user types
-  useEffect(() => {
-    localStorage.setItem('medtracker_grandparent_draft', JSON.stringify(grandparentInfo))
-  }, [grandparentInfo])
+  // Removed localStorage draft saving - data is only saved when form is submitted
 
   const handleMedicationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value
@@ -91,7 +72,7 @@ export default function OnboardingForm({ onComplete }: OnboardingFormProps) {
     }
 
     try {
-      const userId = localStorage.getItem('medtracker_user_id')
+      const userId = getUserId()
       if (!userId) {
         throw new Error('User not logged in')
       }
@@ -118,9 +99,6 @@ export default function OnboardingForm({ onComplete }: OnboardingFormProps) {
         .single()
 
       if (insertError) throw insertError
-
-      // Clear draft data
-      localStorage.removeItem('medtracker_grandparent_draft')
 
       console.log('Grandparent saved:', data)
       onComplete()
