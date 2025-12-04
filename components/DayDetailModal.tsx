@@ -59,7 +59,8 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
       return
     }
 
-    loadMedicationsForDay()
+    // Initial load - show loading state
+    loadMedicationsForDay(true)
     loadUserInfo()
     
     // Use shorter interval (5 seconds) if waiting for any response, otherwise 30 seconds
@@ -69,7 +70,8 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
     
     const intervalId = setInterval(() => {
       console.log('Polling: Refreshing medication data for date:', date)
-      loadMedicationsForDay()
+      // Refresh without showing loading state
+      loadMedicationsForDay(false)
     }, interval)
     
     // Cleanup interval on unmount or when modal closes
@@ -121,17 +123,22 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
     }
   }
 
-  const loadMedicationsForDay = async () => {
+  const loadMedicationsForDay = async (isInitialLoad = false) => {
     console.log('=== LOADING MEDICATIONS FOR DAY ===')
-    console.log('Date:', date)
+    console.log('Date:', date, 'isInitialLoad:', isInitialLoad)
     try {
-      setLoading(true)
+      // Only show loading state on initial load, not on refreshes
+      if (isInitialLoad) {
+        setLoading(true)
+      }
       const userId = getUserId()
       console.log('User ID:', userId)
       
       if (!userId) {
         console.warn('WARNING: No user ID found')
-        setLoading(false)
+        if (isInitialLoad) {
+          setLoading(false)
+        }
         return
       }
 
@@ -146,7 +153,9 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
         console.error('ERROR loading medications:', error)
         console.error('Error code:', error.code)
         console.error('Error message:', error.message)
-        setLoading(false)
+        if (isInitialLoad) {
+          setLoading(false)
+        }
         return
       }
 
@@ -246,7 +255,10 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
       console.error('EXCEPTION loading medications:', error)
       console.error('Error details:', error)
     } finally {
-      setLoading(false)
+      // Only update loading state on initial load
+      if (isInitialLoad) {
+        setLoading(false)
+      }
       console.log('=== MEDICATIONS LOADING COMPLETED ===')
     }
   }
@@ -387,8 +399,8 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
       // Mark this medication as waiting for response
       setWaitingForResponse(prev => new Set(prev).add(medication.id))
       
-      // Check immediately for response
-      loadMedicationsForDay()
+      // Check immediately for response (without showing loading state)
+      loadMedicationsForDay(false)
       
       // Stop waiting after 2 minutes if no response received
       setTimeout(() => {
