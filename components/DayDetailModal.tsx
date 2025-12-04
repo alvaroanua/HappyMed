@@ -48,47 +48,36 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
     type: 'success',
     visible: false,
   })
-  const [recentCallTriggered, setRecentCallTriggered] = useState(false)
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null)
+  const [waitingForResponse, setWaitingForResponse] = useState<Set<string>>(new Set())
 
   // Set up polling with dynamic interval based on recent call
+  // Set up polling to check database every 30 seconds, or every 5 seconds if waiting for response
   useEffect(() => {
     if (!isOpen) {
       // Reset when modal closes
-      setRecentCallTriggered(false)
-      if (pollingInterval) {
-        clearInterval(pollingInterval)
-        setPollingInterval(null)
-      }
+      setWaitingForResponse(new Set())
       return
     }
 
     loadMedicationsForDay()
     loadUserInfo()
     
-    // Clear any existing interval first
-    if (pollingInterval) {
-      clearInterval(pollingInterval)
-    }
+    // Use shorter interval (5 seconds) if waiting for any response, otherwise 30 seconds
+    const interval = waitingForResponse.size > 0 ? 5000 : 30000
     
-    // Use shorter interval (5 seconds) if call was recently triggered, otherwise 30 seconds
-    const interval = recentCallTriggered ? 5000 : 30000
-    
-    console.log(`Starting polling with ${interval / 1000} second interval (recentCallTriggered: ${recentCallTriggered})`)
+    console.log(`Starting polling with ${interval / 1000} second interval (waiting for ${waitingForResponse.size} responses)`)
     
     const intervalId = setInterval(() => {
       console.log('Polling: Refreshing medication data for date:', date)
       loadMedicationsForDay()
     }, interval)
     
-    setPollingInterval(intervalId)
-    
     // Cleanup interval on unmount or when modal closes
     return () => {
       console.log('Cleaning up polling interval')
       clearInterval(intervalId)
     }
-  }, [isOpen, date, recentCallTriggered]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isOpen, date, waitingForResponse.size]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadUserInfo = async () => {
     console.log('=== LOADING USER INFO ===')
@@ -187,6 +176,7 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
         // Map medications with call log status
         const meds: Medication[] = grandparents.map((gp) => {
           const callLog = callLogMap.get(gp.id)
+          const isWaiting = waitingForResponse.has(gp.id)
           
           // Determine phone answered status
           let phoneAnswered: boolean | null = null
@@ -198,10 +188,29 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
               // If answered, check if they took medication
               if (callLog.answer === 'yes') {
                 medicationTaken = true
+                // Response received, stop waiting
+                setWaitingForResponse(prev => {
+                  const newSet = new Set(prev)
+                  newSet.delete(gp.id)
+                  return newSet
+                })
               } else if (callLog.answer === 'no') {
                 medicationTaken = false
+                // Response received, stop waiting
+                setWaitingForResponse(prev => {
+                  const newSet = new Set(prev)
+                  newSet.delete(gp.id)
+                  return newSet
+                })
               }
               // If answered but no answer recorded, medicationTaken stays null
+            } else if (callLog.answered === false) {
+              // Not answered - response received, stop waiting
+              setWaitingForResponse(prev => {
+                const newSet = new Set(prev)
+                newSet.delete(gp.id)
+                return newSet
+              })
             }
             // If not answered, both stay null
           }
@@ -213,11 +222,11 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
             time_to_call: gp.time_to_call,
             gender: gp.gender,
             phone_number: gp.phone_number,
-            phoneAnswered,
-            medicationTaken,
+            phoneAnswered: isWaiting ? null : phoneAnswered,
+            medicationTaken: isWaiting ? null : medicationTaken,
             callLog: callLog || undefined,
           }
-          console.log('Mapped medication:', med)
+          console.log('Mapped medication:', med, 'isWaiting:', isWaiting)
           return med
         })
 
@@ -370,21 +379,24 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
       console.log('Response data:', responseData)
       
       setPopup({
-        message: 'Call has been triggered successfully! Waiting for response...',
+        message: 'Call has been triggered successfully!',
         type: 'success',
         visible: true,
       })
       
-      // Start aggressive polling to check for call response
-      setRecentCallTriggered(true)
+      // Mark this medication as waiting for response
+      setWaitingForResponse(prev => new Set(prev).add(medication.id))
       
-      // Check immediately, then every 5 seconds for the next 2 minutes
+      // Check immediately for response
       loadMedicationsForDay()
       
-      // After 2 minutes, go back to normal polling
+      // Stop waiting after 2 minutes if no response received
       setTimeout(() => {
-        console.log('Returning to normal polling interval')
-        setRecentCallTriggered(false)
+        setWaitingForResponse(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(medication.id)
+          return newSet
+        })
       }, 120000) // 2 minutes
     } catch (error: any) {
       console.error('=== ERROR TRIGGERING CALL ===')
@@ -446,11 +458,13 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
                     <div className={styles.statusRow}>
                       <span className={styles.statusLabel}>Phone Answered:</span>
                       <span className={`${styles.statusValue} ${
+                        waitingForResponse.has(med.id) ? styles.statusLoading :
                         med.phoneAnswered === true ? styles.statusYes :
                         med.phoneAnswered === false ? styles.statusNo :
                         styles.statusPending
                       }`}>
-                        {med.phoneAnswered === true ? '✓ Yes' :
+                        {waitingForResponse.has(med.id) ? '⟳ Loading...' :
+                         med.phoneAnswered === true ? '✓ Yes' :
                          med.phoneAnswered === false ? '✗ No' :
                          'Pending'}
                       </span>
@@ -458,11 +472,13 @@ export default function DayDetailModal({ date, isOpen, onClose }: DayDetailModal
                     <div className={styles.statusRow}>
                       <span className={styles.statusLabel}>Medication Taken:</span>
                       <span className={`${styles.statusValue} ${
+                        waitingForResponse.has(med.id) ? styles.statusLoading :
                         med.medicationTaken === true ? styles.statusYes :
                         med.medicationTaken === false ? styles.statusNo :
                         styles.statusPending
                       }`}>
-                        {med.medicationTaken === true ? '✓ Yes' :
+                        {waitingForResponse.has(med.id) ? '⟳ Loading...' :
+                         med.medicationTaken === true ? '✓ Yes' :
                          med.medicationTaken === false ? '✗ No' :
                          'Pending'}
                       </span>
